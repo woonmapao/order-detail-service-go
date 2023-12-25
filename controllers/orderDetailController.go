@@ -200,17 +200,48 @@ func DeleteOrderDetail(c *gin.Context) {
 	// Extract order detail ID from the request parameters
 	orderDetailID := c.Param("id")
 
-	// Delete the order detail from the database
-	err := initializer.DB.Delete(&models.OrderDetail{}, orderDetailID).Error
+	// Convert order detail ID to integer (validations)
+	id, err := strconv.Atoi(orderDetailID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to delete order detail",
-		})
+		c.JSON(http.StatusBadRequest,
+			responses.CreateErrorResponse([]string{
+				"Invalid order detail ID",
+			}))
+		return
+	}
+
+	// Check if the order detail with the give ID exists
+	var orderDetail models.OrderDetail
+	err = initializer.DB.First(&orderDetail, id).Error
+	if err != nil {
+		c.JSON(http.StatusInternalServerError,
+			responses.CreateErrorResponse([]string{
+				"Failed to fetch order detail",
+			}))
+		return
+	}
+
+	if orderDetail == (models.OrderDetail{}) {
+		c.JSON(http.StatusNotFound,
+			responses.CreateErrorResponse([]string{
+				"Order detail not found",
+			}))
+		return
+	}
+
+	// Delete the order detail from the database
+
+	err = initializer.DB.Delete(&orderDetail, id).Error
+	if err != nil {
+		c.JSON(http.StatusInternalServerError,
+			responses.CreateErrorResponse([]string{
+				"Failed to delete order detail",
+			}))
 		return
 	}
 
 	// Return a JSON response indicating success
-	c.JSON(http.StatusOK, gin.H{"success": true})
+	c.JSON(http.StatusOK, responses.CreateSuccessResponse(nil))
 }
 
 func GetOrderDetailsByOrderID(c *gin.Context) {
