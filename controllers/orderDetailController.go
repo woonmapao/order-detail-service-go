@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/woonmapao/order-detail-service-go/initializer"
@@ -39,20 +40,39 @@ func GetOrderDetailByID(c *gin.Context) {
 	// Extract order detail ID from the request parameters
 	orderDetailID := c.Param("id")
 
-	// Query the database for the order detail with the specified ID
-	var orderDetail models.OrderDetail
-	err := initializer.DB.First(&orderDetail, orderDetailID).Error
+	// Convert order detail ID to integer (validation)
+	id, err := strconv.Atoi(orderDetailID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"error": "Order detail not found",
-		})
+		c.JSON(http.StatusBadRequest,
+			responses.CreateErrorResponse([]string{
+				"Invalid order detail ID",
+			}))
 		return
 	}
 
-	// Return a JSON response with the order detail details
-	c.JSON(http.StatusOK, gin.H{
-		"orderDetail": orderDetail,
-	})
+	// Get the order detail from the database
+	var orderDetail models.OrderDetail
+	err = initializer.DB.First(&orderDetail, id).Error
+	if err != nil {
+		c.JSON(http.StatusInternalServerError,
+			responses.CreateErrorResponse([]string{
+				"Failed to fetch order detail",
+			}))
+		return
+	}
+
+	// Check if the order detail was not found
+	if orderDetail == (models.OrderDetail{}) {
+		c.JSON(http.StatusNotFound,
+			responses.CreateErrorResponse([]string{
+				"Order detail not found",
+			}))
+		return
+	}
+
+	// Return success response with order detail
+	c.JSON(http.StatusOK,
+		responses.CreateSuccessResponse(&orderDetail))
 }
 
 func CreateOrderDetail(c *gin.Context) {
