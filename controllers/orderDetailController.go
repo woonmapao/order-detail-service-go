@@ -248,23 +248,36 @@ func GetOrderDetailsByOrderID(c *gin.Context) {
 	// Extract order ID from the request parameters
 	orderID := c.Param("id")
 
-	// Query the database for order details associated with the order
-	orderDetails, err := func(orderId string) ([]models.OrderDetail, error) {
-
-		var orderDetails []models.OrderDetail
-		err := initializer.DB.Where("order_id = ?", orderID).Find(&orderDetails).Error
-		if err != nil {
-			return nil, err
-		}
-		return orderDetails, nil
-	}(orderID)
+	id, err := strconv.Atoi(orderID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to fetch order details",
-		})
+		c.JSON(http.StatusBadRequest,
+			responses.CreateErrorResponse([]string{
+				"Invalid order ID",
+			}))
+		return
+	}
+
+	// Query the database for order details associated with the order
+
+	var orderDetails []models.OrderDetail
+	err = initializer.DB.Where("order_id = ?", id).Find(&orderDetails).Error
+	if err != nil {
+		c.JSON(http.StatusInternalServerError,
+			responses.CreateErrorResponse([]string{
+				"Failed to fetch order details",
+			}))
+		return
+	}
+
+	if len(orderDetails) == 0 {
+		c.JSON(http.StatusNotFound,
+			responses.CreateErrorResponse([]string{
+				"No order details found for the give order ID",
+			}))
 		return
 	}
 
 	// Return a JSON response with the order details
-	c.JSON(http.StatusOK, gin.H{"orderDetails": orderDetails})
+	c.JSON(http.StatusOK,
+		responses.CreateSuccessResponseForMultipleOrderDetails(orderDetails))
 }
