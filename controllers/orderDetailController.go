@@ -8,6 +8,7 @@ import (
 	"github.com/woonmapao/order-detail-service-go/initializer"
 	"github.com/woonmapao/order-detail-service-go/models"
 	"github.com/woonmapao/order-detail-service-go/responses"
+	"github.com/woonmapao/order-detail-service-go/validations"
 )
 
 func GetAllOrderDetails(c *gin.Context) {
@@ -76,24 +77,25 @@ func GetOrderDetailByID(c *gin.Context) {
 }
 
 func CreateOrderDetail(c *gin.Context) {
-	// Extract order detail data from the request body
-	var orderDetailData struct {
+	// Extract data from the request body
+	var body struct {
 		OrderID   int     `json:"orderId" binding:"required"`
 		ProductID int     `json:"productId" binding:"required"`
 		Quantity  int     `json:"quantity" binding:"required,gte=1"`
 		Subtotal  float64 `json:"subtotal"`
 	}
 
-	err := c.ShouldBindJSON(&orderDetailData)
+	err := c.ShouldBindJSON(&body)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": err.Error(),
-		})
+		c.JSON(http.StatusBadRequest,
+			responses.CreateErrorResponse([]string{
+				err.Error(),
+			}))
 		return
 	}
 
 	// Validate the input data
-	err = validators.ValidateOrderDetailData(orderDetailData)
+	err = validations.ValidateOrderDetailData(body)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": err.Error(),
@@ -101,26 +103,27 @@ func CreateOrderDetail(c *gin.Context) {
 		return
 	}
 
-	// Create a new order detail in the database
+	// Create order detail in the database
 	orderDetail := models.OrderDetail{
-		OrderID:   orderDetailData.OrderID,
-		ProductID: orderDetailData.ProductID,
-		Quantity:  orderDetailData.Quantity,
-		Subtotal:  orderDetailData.Subtotal,
+		OrderID:   body.OrderID,
+		ProductID: body.ProductID,
+		Quantity:  body.Quantity,
+		Subtotal:  body.Subtotal,
 	}
 
 	err = initializer.DB.Create(&orderDetail).Error
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to create order details",
-		})
+		c.JSON(http.StatusInternalServerError,
+			responses.CreateErrorResponse([]string{
+				"Failed to create order detail",
+			}))
 		return
 	}
 
 	// Return a JSON response with the newly created order detail
-	c.JSON(http.StatusCreated, gin.H{
-		"createdOrderDetail": orderDetail,
-	})
+	c.JSON(http.StatusOK,
+		responses.CreateSuccessResponse(&orderDetail),
+	)
 }
 
 func UpdateOrderDetail(c *gin.Context) {
