@@ -130,41 +130,70 @@ func UpdateOrderDetail(c *gin.Context) {
 	// Extract order detail ID from the request parameters
 	orderDetailID := c.Param("id")
 
-	// Extract updated order detail data from the request body
-	var updatedData models.OrderDetail
-	err := c.ShouldBindJSON(&updatedData)
+	// Convert order detail ID to integer (validations)
+	id, err := strconv.Atoi(orderDetailID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": err.Error()},
-		)
+		c.JSON(http.StatusBadRequest,
+			responses.CreateErrorResponse([]string{
+				"Invalid order detail ID",
+			}))
 		return
 	}
 
-	// Validate the input data
-	err = validators.ValidateUpdatedOrderDetailData(updatedData)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": err.Error(),
-		})
-		return
-	}
-
-	// Update the order detail in the database
+	// Get existing order detail from the database
 	var existingOrderDetail models.OrderDetail
-	err = initializer.DB.First(&existingOrderDetail, orderDetailID).Error
+	err = initializer.DB.First(&existingOrderDetail, id).Error
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"error": "Order detail not found",
-		})
+		c.JSON(http.StatusInternalServerError,
+			responses.CreateErrorResponse([]string{
+				"Failed to fetch order detail",
+			}))
 		return
 	}
 
-	initializer.DB.Model(&existingOrderDetail).Updates(updatedData)
+	// Get data from the request body
+	var updateData struct {
+		Quantity int     `json:"quantity" binding:"required,gte=1"`
+		Subtotal float64 `json:"subtotal"`
+	}
+	err = c.ShouldBindJSON(&updateData)
+	if err != nil {
+		c.JSON(http.StatusBadRequest,
+			responses.CreateErrorResponse([]string{
+				err.Error(),
+			}))
+		return
+	}
 
-	// Return a JSON response with the updated order detail
-	c.JSON(http.StatusOK, gin.H{
-		"updatedOrderDetail": existingOrderDetail,
-	})
+	// Validate the update data
+	err = validations.ValidateOrderDetailUpdateData(updateData)
+	if err != nil {
+		c.JSON(http.StatusBadRequest,
+			responses.CreateErrorResponse([]string{
+				err.Error(),
+			}))
+		return
+	}
+
+	// Update order detail fields
+	existingOrderDetail.Quantity = updateData.Quantity
+	existingOrderDetail.Subtotal = updateData.Subtotal
+
+	// Save the updated order detail to the database
+	err = initializer.DB.Save(&existingOrderDetail).Error
+	if err != nil {
+		c.JSON(http.StatusInternalServerError,
+			responses.CreateErrorResponse([]string{
+				"Failed to update order detail",
+			}))
+		return
+	}
+
+	// Return success response
+	c.JSON(http.StatusOK,
+		responses.CreateSuccessResponse(&existingOrderDetail),
+	)
+
 }
 
 func DeleteOrderDetail(c *gin.Context) {
