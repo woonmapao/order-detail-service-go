@@ -4,34 +4,41 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
+
+	"github.com/woonmapao/order-detail-service-go/models"
+	"gorm.io/gorm"
 )
 
-func ValidateOrderDetailData(data struct {
-	OrderID   int     `json:"orderId" binding:"required"`
-	ProductID int     `json:"productId" binding:"required"`
-	Quantity  int     `json:"quantity" binding:"required,gte=1"`
-	Subtotal  float64 `json:"subtotal"`
-}) error {
+func ValidateOrderDetailData(orderID, productID, quantity int, tx *gorm.DB) error {
 
 	// Fetch information using HTTP call
-	orderProductInfo, err := getOrderAndProductInfo(data.OrderID, data.ProductID)
+	orderProductInfo, err := getOrderAndProductInfo(orderID, productID)
 	if err != nil {
-		return fmt.Errorf("failed to retrieve order and product information: %v", err)
+		return fmt.Errorf(
+			"failed to retrieve order and product information: %v", err,
+		)
 	}
 
 	// Check if the order exists
-	if orderProductInfo.OrderStatusCode != http.StatusOK {
-		return fmt.Errorf("order with ID %d does not exist", data.OrderID)
+	if orderProductInfo.OrderID != 0 {
+		return fmt.Errorf(
+			"order with ID %d does not exist", orderID,
+		)
 	}
 
 	// Check if the product exists
-	if orderProductInfo.ProductStatusCode != http.StatusOK {
-		return fmt.Errorf("product with ID %d does not exist", data.ProductID)
+	if orderProductInfo.ProductID != 0 {
+		return fmt.Errorf(
+			"product with ID %d does not exist", productID,
+		)
 	}
 
 	// Check if the product has sufficient stock
-	if orderProductInfo.StockQuantity < data.Quantity {
-		return fmt.Errorf("insufficient stock for product with ID %d", data.ProductID)
+	if orderProductInfo.ProductStockQuantity < quantity {
+		return fmt.Errorf(
+			"insufficient stock for product with ID %d", productID,
+		)
 	}
 
 	return nil
@@ -55,16 +62,18 @@ func ValidateOrderDetailUpdateData(updateData struct {
 }
 
 // Make an HTTP request to both the order and product services
-func getOrderAndProductInfo(orderID, productID int) (*OrderProductInfo, error) {
+func getOrderAndProductInfo(orderID, productID int) (*OrderProduct, error) {
 	// Make HTTP GET request to both order and product services concurrently
 	// My first time trying go routines in a project :D
 	orderCh := make(chan *http.Response)
 	productCh := make(chan *http.Response)
+	errCh := make(chan error, 2)
 
+	// HTTP GET concurrently
 	go func() {
 		resp, err := http.Get(fmt.Sprintf("http://order-service/api/orders/%d", orderID))
 		if err != nil {
-			orderCh <- nil
+			errCh <- err
 		} else {
 			orderCh <- resp
 		}
@@ -73,72 +82,96 @@ func getOrderAndProductInfo(orderID, productID int) (*OrderProductInfo, error) {
 	go func() {
 		resp, err := http.Get(fmt.Sprintf("http://product-service/api/products/%d", productID))
 		if err != nil {
-			productCh <- nil
+			errCh <- err
 		} else {
 			productCh <- resp
 		}
 	}()
 
-	// Wait for responses from both services
-	orderResp := <-orderCh
-	productResp := <-productCh
-
-	// Close the channels
+	// Wait for responses from both services or an error
+	var orderResp, productResp *http.Response
+	for i := 0; i < 2; i++ {
+		select {
+		case orderResp = <-orderCh:
+		case productResp = <-productCh:
+		case err := <-errCh:
+			close(orderCh)
+			close(productCh)
+			close(errCh)
+			return nil, fmt.Errorf("failed to make HTTP request: %v", err)
+		}
+	}
 	close(orderCh)
 	close(productCh)
+	close(errCh)
 
 	// Parse the responses and return the combined information
-	_, productInfo, err := parseOrderAndProductInfo(orderResp, productResp)
+	order, product, err := parseOrderAndProductInfo(orderResp, productResp)
 	if err != nil {
 		return nil, err
 	}
 
-	return &OrderProductInfo{
-		OrderStatusCode:   orderResp.StatusCode,
-		ProductStatusCode: productResp.StatusCode,
-		StockQuantity:     productInfo.StockQuantity,
+	return &OrderProduct{
+		OrderID:              int(order.Model.ID),
+		ProductID:            int(product.Model.ID),
+		ProductStockQuantity: product.StockQuantity,
 	}, nil
 }
 
-// parseOrderAndProductInfo parses the responses from the order and product services.
-func parseOrderAndProductInfo(orderResp, productResp *http.Response) (*OrderInfo, *ProductInfo, error) {
+func parseOrderAndProductInfo(orderResp, productResp *http.Response) (*models.Order, *models.Product, error) {
+
+	var order models.Order
+	var product models.Product
+
 	// Parse order information
-	var orderInfo OrderInfo
 	if orderResp != nil {
-		err := json.NewDecoder(orderResp.Body).Decode(&orderInfo)
-		if err != nil {
-			return nil, nil, err
-		}
 		defer orderResp.Body.Close()
-	}
 
-	// Parse product information
-	var productInfo ProductInfo
-	if productResp != nil {
-		err := json.NewDecoder(productResp.Body).Decode(&productInfo)
-		if err != nil {
-			return nil, nil, err
+		if orderResp.StatusCode == http.StatusOK {
+			// Decode the JSON response into the orderInfo struct
+			err := json.NewDecoder(orderResp.Body).Decode(&order)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to decode order response: %v", err)
+			}
+		} else {
+			// Handle non-OK status code (if needed)
+			return nil, nil, fmt.Errorf("order service returned non-OK status: %d", orderResp.StatusCode)
 		}
-		defer productResp.Body.Close()
 	}
 
-	return &orderInfo, &productInfo, nil
+	// Parse the product response
+	if productResp != nil {
+		defer productResp.Body.Close()
+
+		if productResp.StatusCode == http.StatusOK {
+			// Decode the JSON response into the productInfo struct
+			err := json.NewDecoder(productResp.Body).Decode(&product)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to decode product response: %v", err)
+			}
+		} else {
+			// Handle non-OK status code (if needed)
+			return nil, nil, fmt.Errorf("product service returned non-OK status: %d", productResp.StatusCode)
+		}
+	}
+
+	return &order, &product, nil
 }
 
-// OrderInfo represents information about an order.
-type OrderInfo struct {
-	// No use right now
-}
+type OrderProduct struct {
+	// Order fields
+	OrderID     int
+	UserID      int       `json:"userId"` // Foreign key to User
+	OrderDate   time.Time `json:"orderDate"`
+	TotalAmount float64   `json:"totalAmount"`
+	Status      string    `json:"status"`
 
-// ProductInfo represents information about a product.
-type ProductInfo struct {
-	StockQuantity int `json:"stockQuantity"`
-	// Only need this for now
-}
-
-// OrderProductInfo combines information from the order and product services.
-type OrderProductInfo struct {
-	OrderStatusCode   int
-	ProductStatusCode int
-	StockQuantity     int
+	// Product fields
+	ProductID            int
+	ProductName          string  `json:"productName"`
+	ProductCategory      string  `json:"productCategory"`
+	ProductPrice         float64 `json:"productPrice"`
+	ProductDescription   string  `json:"productDescription"`
+	ProductStockQuantity int     `json:"productStockQuantity"`
+	ProductReorderLevel  int     `json:"productReorderLevel"`
 }

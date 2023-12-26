@@ -23,7 +23,15 @@ func CreateSuccessResponse(data interface{}) gin.H {
 	}
 }
 
-func CreateSuccessResponseForMultipleOrderDetails(orderDetails []models.OrderDetail) gin.H {
+func GetSuccessResponse(data interface{}) gin.H {
+	return gin.H{
+		"status":  "success",
+		"message": "Request successful",
+		"data":    data,
+	}
+}
+
+func GetSuccessResponseForMultipleOrderDetails(orderDetails []models.OrderDetail) gin.H {
 	return gin.H{
 		"status":  "success",
 		"message": "Order details retrieved successfully",
