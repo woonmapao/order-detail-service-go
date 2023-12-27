@@ -24,13 +24,12 @@ func GetAllOrderDetails(c *gin.Context) {
 				err.Error(),
 			}))
 	}
-
-	// Check if no order details were found
 	if len(orderDetails) == 0 {
 		c.JSON(http.StatusNotFound,
 			responses.CreateErrorResponse([]string{
 				"No order details found",
 			}))
+		return
 	}
 
 	// Return a JSON response with the list of order details
