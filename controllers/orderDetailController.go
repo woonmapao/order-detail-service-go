@@ -88,11 +88,11 @@ func GetOrderDetailByID(c *gin.Context) {
 func AddOrderDetail(c *gin.Context) {
 	// Extract data from the request body
 	var body struct {
-		OrderID   int `json:"orderId" binding:"required"`
-		ProductID int `json:"productId" binding:"required"`
-		Quantity  int `json:"quantity" binding:"required,gte=1"`
+		OrderID   int     `json:"orderId" binding:"required"`
+		ProductID int     `json:"productId" binding:"required"`
+		Quantity  int     `json:"quantity" binding:"required,gte=1"`
+		Subtotal  float64 `json:"subtotal"`
 	}
-
 	err := c.ShouldBindJSON(&body)
 	if err != nil {
 		c.JSON(http.StatusBadRequest,
@@ -135,28 +135,33 @@ func AddOrderDetail(c *gin.Context) {
 		return
 	}
 
-	// Fetch the product price from the product-service
-	p, err := services.GetProductByID(body.ProductID)
-	if err != nil {
-		tx.Rollback()
-		c.JSON(http.StatusInternalServerError,
-			responses.CreateErrorResponse([]string{
-				"Failed to fetch product price",
-				err.Error(),
-			}))
-		return
+	orderDetail := models.OrderDetail{}
+
+	orderDetail.OrderID = body.OrderID
+	orderDetail.ProductID = body.ProductID
+	orderDetail.Quantity = body.Quantity
+
+	if body.Subtotal == 0.0 {
+		// Fetch the product price from the product-service
+		p, err := services.GetProductByID(body.ProductID)
+		if err != nil {
+			tx.Rollback()
+			c.JSON(http.StatusInternalServerError,
+				responses.CreateErrorResponse([]string{
+					"Failed to fetch product price",
+					err.Error(),
+				}))
+			return
+		}
+
+		// Calculate the subtotal
+		subtotal := float64(body.Quantity) * p.Price
+		orderDetail.Subtotal = subtotal
+
+	} else {
+		orderDetail.Subtotal = body.Subtotal
 	}
 
-	// Calculate the subtotal
-	subtotal := float64(body.Quantity) * p.Price
-
-	// Create order detail in the database
-	orderDetail := models.OrderDetail{
-		OrderID:   body.OrderID,
-		ProductID: body.ProductID,
-		Quantity:  body.Quantity,
-		Subtotal:  subtotal,
-	}
 	err = tx.Create(&orderDetail).Error
 	if err != nil {
 		tx.Rollback()
