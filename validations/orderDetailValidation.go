@@ -10,6 +10,11 @@ import (
 	"gorm.io/gorm"
 )
 
+const (
+	orderServiceURL   = "http://localhost:3030/order"
+	productServiceURL = "http://localhost:2002/products"
+)
+
 func ValidateOrderDetailData(orderID, productID, quantity int, tx *gorm.DB) error {
 
 	// Fetch information using HTTP call
@@ -34,13 +39,6 @@ func ValidateOrderDetailData(orderID, productID, quantity int, tx *gorm.DB) erro
 		)
 	}
 
-	// Check if the product has sufficient stock
-	if orderProductInfo.ProductStockQuantity < quantity {
-		return fmt.Errorf(
-			"insufficient stock for product with ID %d", productID,
-		)
-	}
-
 	return nil
 
 }
@@ -55,7 +53,7 @@ func getOrderAndProductInfo(orderID, productID int) (*OrderProduct, error) {
 
 	// HTTP GET concurrently
 	go func() {
-		resp, err := http.Get(fmt.Sprintf("http://order-service/api/orders/%d", orderID))
+		resp, err := http.Get(fmt.Sprintf("%s/%d", orderServiceURL, orderID))
 		if err != nil {
 			errCh <- err
 		} else {
@@ -64,7 +62,7 @@ func getOrderAndProductInfo(orderID, productID int) (*OrderProduct, error) {
 	}()
 
 	go func() {
-		resp, err := http.Get(fmt.Sprintf("http://product-service/api/products/%d", productID))
+		resp, err := http.Get(fmt.Sprintf("%s/%d", productServiceURL, productID))
 		if err != nil {
 			errCh <- err
 		} else {

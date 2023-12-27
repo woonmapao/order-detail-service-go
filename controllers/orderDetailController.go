@@ -10,8 +10,11 @@ import (
 	"github.com/woonmapao/order-detail-service-go/initializer"
 	"github.com/woonmapao/order-detail-service-go/models"
 	"github.com/woonmapao/order-detail-service-go/responses"
+	"github.com/woonmapao/order-detail-service-go/services"
 	"github.com/woonmapao/order-detail-service-go/validations"
 )
+
+const productServiceURL = "http://localhost:2002/products"
 
 func GetAllOrderDetails(c *gin.Context) {
 	// Retrieve order details from the database
@@ -133,7 +136,7 @@ func AddOrderDetail(c *gin.Context) {
 	}
 
 	// Fetch the product price from the product-service
-	productPrice, err := getProductPrice(body.ProductID)
+	p, err := services.GetProductByID(body.ProductID)
 	if err != nil {
 		tx.Rollback()
 		c.JSON(http.StatusInternalServerError,
@@ -145,7 +148,7 @@ func AddOrderDetail(c *gin.Context) {
 	}
 
 	// Calculate the subtotal
-	subtotal := float64(body.Quantity) * productPrice
+	subtotal := float64(body.Quantity) * p.Price
 
 	// Create order detail in the database
 	orderDetail := models.OrderDetail{
@@ -185,7 +188,7 @@ func AddOrderDetail(c *gin.Context) {
 
 // Function to fetch product price from product-service
 func getProductPrice(productID int) (float64, error) {
-	resp, err := http.Get(fmt.Sprintf("http://product-service/api/products/%d", productID))
+	resp, err := http.Get(fmt.Sprintf("%s/%d", productServiceURL, productID))
 	if err != nil {
 		return 0, err
 	}
