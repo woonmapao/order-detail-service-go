@@ -45,22 +45,6 @@ func ValidateOrderDetailData(orderID, productID, quantity int, tx *gorm.DB) erro
 
 }
 
-func ValidateOrderDetailUpdateData(updateData struct {
-	Quantity int     `json:"quantity" binding:"required,gte=1"`
-	Subtotal float64 `json:"subtotal"`
-}) error {
-
-	if updateData.Quantity <= 0 {
-		return fmt.Errorf("quantity must be a positive integer")
-	}
-
-	if updateData.Subtotal < 0 {
-		return fmt.Errorf("subtotal must be a non-negative value")
-	}
-
-	return nil
-}
-
 // Make an HTTP request to both the order and product services
 func getOrderAndProductInfo(orderID, productID int) (*OrderProduct, error) {
 	// Make HTTP GET request to both order and product services concurrently
