@@ -7,9 +7,12 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	ctrl "github.com/woonmapao/order-detail-service-go/controllers"
 	"github.com/woonmapao/order-detail-service-go/initializer"
+	i "github.com/woonmapao/order-detail-service-go/initializer"
 	"github.com/woonmapao/order-detail-service-go/models"
 	"github.com/woonmapao/order-detail-service-go/responses"
+	r "github.com/woonmapao/order-detail-service-go/responses"
 	"github.com/woonmapao/order-detail-service-go/services"
 	"github.com/woonmapao/order-detail-service-go/validations"
 )
@@ -17,29 +20,18 @@ import (
 const productServiceURL = "http://localhost:2002/products"
 
 func GetAllOrderDetails(c *gin.Context) {
-	// Retrieve order details from the database
-	var orderDetails []models.OrderDetail
-	err := initializer.DB.Find(&orderDetails).Error
+
+	details, err := ctrl.GetDetails(i.DB)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError,
-			responses.CreateErrorResponse([]string{
-				"Failed to fetch order details",
-				err.Error(),
-			}))
-	}
-	if len(orderDetails) == 0 {
 		c.JSON(http.StatusNotFound,
-			responses.CreateErrorResponse([]string{
-				"No order details found",
+			r.CreateErrorResponse([]string{
+				err.Error(),
 			}))
 		return
 	}
 
-	// Return a JSON response with the list of order details
 	c.JSON(http.StatusOK,
-		responses.GetSuccessResponseForMultipleOrderDetails(
-			orderDetails,
-		),
+		r.GetDetailsSuccess(*details),
 	)
 }
 
