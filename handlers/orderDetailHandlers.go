@@ -19,12 +19,12 @@ import (
 
 const productServiceURL = "http://localhost:2002/products"
 
-func GetAllOrderDetails(c *gin.Context) {
+func GetDetailsHandler(c *gin.Context) {
 
 	details, err := ctrl.GetDetails(i.DB)
 	if err != nil {
 		c.JSON(http.StatusNotFound,
-			r.CreateErrorResponse([]string{
+			r.CreateError([]string{
 				err.Error(),
 			}))
 		return
@@ -35,45 +35,28 @@ func GetAllOrderDetails(c *gin.Context) {
 	)
 }
 
-func GetOrderDetailByID(c *gin.Context) {
-	// Extract order detail ID from the request parameters
-	orderDetailID := c.Param("id")
+func GetDetailHandler(c *gin.Context) {
 
-	// Convert order detail ID to integer (validation)
-	id, err := strconv.Atoi(orderDetailID)
+	id, err := ctrl.GetID(c)
 	if err != nil {
 		c.JSON(http.StatusBadRequest,
-			responses.CreateErrorResponse([]string{
-				"Invalid order detail ID",
+			r.CreateError([]string{
 				err.Error(),
 			}))
 		return
 	}
 
-	// Get the order detail from the database
-	var orderDetail models.OrderDetail
-	err = initializer.DB.First(&orderDetail, id).Error
+	detail, err := ctrl.GetDetail(id, i.DB)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError,
-			responses.CreateErrorResponse([]string{
-				"Failed to fetch order detail",
+		c.JSON(http.StatusNotFound,
+			r.CreateError([]string{
 				err.Error(),
 			}))
 		return
 	}
 
-	// Check if the order detail was not found
-	if orderDetail == (models.OrderDetail{}) {
-		c.JSON(http.StatusNotFound,
-			responses.CreateErrorResponse([]string{
-				"Order detail not found",
-			}))
-		return
-	}
-
-	// Return success response with order detail
 	c.JSON(http.StatusOK,
-		responses.GetSuccessResponse(&orderDetail),
+		responses.GetSuccess(detail),
 	)
 }
 

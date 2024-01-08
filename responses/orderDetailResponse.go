@@ -5,10 +5,10 @@ import (
 	"github.com/woonmapao/order-detail-service-go/models"
 )
 
-func CreateErrorResponse(errors []string) gin.H {
+func CreateError(errors []string) gin.H {
 	return gin.H{
 		"status":  "error",
-		"message": "Validation failed",
+		"message": "validation failed",
 		"data": gin.H{
 			"error": errors,
 		},
@@ -23,10 +23,10 @@ func CreateSuccessResponse(data interface{}) gin.H {
 	}
 }
 
-func GetSuccessResponse(data interface{}) gin.H {
+func GetSuccess(data interface{}) gin.H {
 	return gin.H{
 		"status":  "success",
-		"message": "Request successful",
+		"message": "get success",
 		"data":    data,
 	}
 }
