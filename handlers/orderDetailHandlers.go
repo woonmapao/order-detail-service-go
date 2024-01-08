@@ -5,15 +5,17 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"sync"
 
 	"github.com/gin-gonic/gin"
 	ctrl "github.com/woonmapao/order-detail-service-go/controllers"
 	"github.com/woonmapao/order-detail-service-go/initializer"
 	i "github.com/woonmapao/order-detail-service-go/initializer"
 	"github.com/woonmapao/order-detail-service-go/models"
+	m "github.com/woonmapao/order-detail-service-go/models"
 	"github.com/woonmapao/order-detail-service-go/responses"
 	r "github.com/woonmapao/order-detail-service-go/responses"
-	"github.com/woonmapao/order-detail-service-go/services"
+	s "github.com/woonmapao/order-detail-service-go/services"
 	"github.com/woonmapao/order-detail-service-go/validations"
 )
 
@@ -60,101 +62,87 @@ func GetDetailHandler(c *gin.Context) {
 	)
 }
 
-func AddOrderDetail(c *gin.Context) {
-	// Extract data from the request body
-	var body struct {
-		OrderID   int     `json:"orderId" binding:"required"`
-		ProductID int     `json:"productId" binding:"required"`
-		Quantity  int     `json:"quantity" binding:"required,gte=1"`
-		Subtotal  float64 `json:"subtotal"`
-	}
-	err := c.ShouldBindJSON(&body)
+func AddDetailHandler(c *gin.Context) {
+
+	var body m.DetailRequest
+	err := ctrl.BindAndValidate(c, &body)
 	if err != nil {
 		c.JSON(http.StatusBadRequest,
-			responses.CreateErrorResponse([]string{
-				"Invalid request format",
+			r.CreateError([]string{
 				err.Error(),
 			}))
 		return
 	}
 
-	// Check for empty values
-	if body.OrderID == 0 || body.ProductID == 0 || body.Quantity == 0 {
-		c.JSON(http.StatusBadRequest,
-			responses.CreateErrorResponse([]string{
-				"OrderID, ProductID, and Quantity are required fields",
-			}))
-		return
-	}
-
 	// Start a transaction
-	tx := initializer.DB.Begin()
-	if tx.Error != nil {
+	tx, err := ctrl.StartTrx(c)
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+	if err != nil {
 		c.JSON(http.StatusInternalServerError,
-			responses.CreateErrorResponse([]string{
-				"Failed to begin transaction",
+			r.CreateError([]string{
 				tx.Error.Error(),
 			}))
 		return
 	}
 
-	// Validate the input data
-	err = validations.ValidateOrderDetailData(
-		body.OrderID, body.ProductID, body.Quantity, tx,
-	)
-	if err != nil {
-		tx.Rollback()
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": err.Error(),
-		})
+	var wg sync.WaitGroup
+	var product *m.Product
+	var orderErr, productErr error
+
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		_, orderErr = s.GetOrder(body.OrderID)
+	}()
+
+	go func() {
+		defer wg.Done()
+		product, productErr = s.GetProduct(body.ProductID)
+	}()
+
+	wg.Wait()
+
+	if orderErr != nil {
+		c.JSON(http.StatusBadRequest,
+			r.CreateError([]string{
+				err.Error(),
+			}))
+		return
+	}
+	if productErr != nil {
+		c.JSON(http.StatusBadRequest,
+			r.CreateError([]string{
+				err.Error(),
+			}))
 		return
 	}
 
-	orderDetail := models.OrderDetail{}
-
-	orderDetail.OrderID = body.OrderID
-	orderDetail.ProductID = body.ProductID
-	orderDetail.Quantity = body.Quantity
-
-	if body.Subtotal == 0.0 {
-		// Fetch the product price from the product-service
-		p, err := services.GetProductByID(body.ProductID)
-		if err != nil {
-			tx.Rollback()
-			c.JSON(http.StatusInternalServerError,
-				responses.CreateErrorResponse([]string{
-					"Failed to fetch product price",
-					err.Error(),
-				}))
-			return
-		}
-
-		// Calculate the subtotal
-		subtotal := float64(body.Quantity) * p.Price
-		orderDetail.Subtotal = subtotal
-
-	} else {
-		orderDetail.Subtotal = body.Subtotal
+	adding := m.OrderDetail{
+		OrderID:   body.OrderID,
+		ProductID: body.ProductID,
+		Quantity:  body.Quantity,
+		Subtotal:  product.Price * float64(body.Quantity),
 	}
-
-	err = tx.Create(&orderDetail).Error
+	err = ctrl.AddDetail(&adding, tx)
 	if err != nil {
 		tx.Rollback()
 		c.JSON(http.StatusInternalServerError,
-			responses.CreateErrorResponse([]string{
-				"Failed to create order detail",
+			r.CreateError([]string{
 				err.Error(),
 			}))
 		return
 	}
 
 	// Commit the transaction and check for commit errors
-	err = tx.Commit().Error
+	err = ctrl.CommitTrx(c, tx)
 	if err != nil {
-		tx.Rollback()
 		c.JSON(http.StatusInternalServerError,
-			responses.CreateErrorResponse([]string{
-				"Failed to commit transaction",
+			r.CreateError([]string{
 				err.Error(),
 			}))
 		return
@@ -162,7 +150,7 @@ func AddOrderDetail(c *gin.Context) {
 
 	// Return a JSON response with the newly created order detail
 	c.JSON(http.StatusOK,
-		responses.CreateSuccessResponse(&orderDetail),
+		responses.CreateSuccess(adding),
 	)
 }
 

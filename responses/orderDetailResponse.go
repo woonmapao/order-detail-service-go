@@ -15,10 +15,10 @@ func CreateError(errors []string) gin.H {
 	}
 }
 
-func CreateSuccessResponse(data interface{}) gin.H {
+func CreateSuccess(data interface{}) gin.H {
 	return gin.H{
 		"status":  "success",
-		"message": "Request successful",
+		"message": "create success",
 		"data":    data,
 	}
 }

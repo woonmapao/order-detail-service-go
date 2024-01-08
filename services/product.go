@@ -20,9 +20,10 @@ type ProductData struct {
 	Product models.Product `json:"product"`
 }
 
-func GetProductByID(productID int) (*models.Product, error) {
-	// Make a GET request to the product-service API
-	resp, err := http.Get(fmt.Sprintf("%s/%d", productServiceURL, productID))
+func GetProduct(id int) (*models.Product, error) {
+
+	// HTTP GET request to product-service
+	resp, err := http.Get(fmt.Sprintf("%s/%d", productServiceURL, id))
 	if err != nil {
 		return nil, err
 	}
@@ -30,7 +31,10 @@ func GetProductByID(productID int) (*models.Product, error) {
 
 	// Check the status code of the response
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("failed to fetch product. Status code: %d", resp.StatusCode)
+		return nil, fmt.Errorf(
+			"failed to fetch product. Status code: %d",
+			resp.StatusCode,
+		)
 	}
 
 	// Decode the JSON response into a ProductResponse struct
