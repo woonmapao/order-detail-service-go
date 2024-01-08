@@ -110,14 +110,14 @@ func AddDetailHandler(c *gin.Context) {
 	if orderErr != nil {
 		c.JSON(http.StatusBadRequest,
 			r.CreateError([]string{
-				err.Error(),
+				orderErr.Error(),
 			}))
 		return
 	}
 	if productErr != nil {
 		c.JSON(http.StatusBadRequest,
 			r.CreateError([]string{
-				err.Error(),
+				productErr.Error(),
 			}))
 		return
 	}
