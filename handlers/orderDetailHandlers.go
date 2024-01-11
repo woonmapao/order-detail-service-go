@@ -151,7 +151,7 @@ func AddDetailHandler(c *gin.Context) {
 	)
 }
 
-func UpdateOrderDetail(c *gin.Context) {
+func UpdateOrderDetailHandler(c *gin.Context) {
 
 	id, err := ctrl.GetID(c)
 	if err != nil {
