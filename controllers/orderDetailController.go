@@ -114,3 +114,12 @@ func UpdateOrderDetail(update *m.OrderDetail, exist *m.OrderDetail, tx *gorm.DB)
 	}
 	return nil
 }
+
+func DeleteDetail(id int, tx *gorm.DB) error {
+
+	err := tx.Delete(&m.OrderDetail{}, id)
+	if err != nil {
+		return errors.New("failed to delete order detail")
+	}
+	return nil
+}

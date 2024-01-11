@@ -263,76 +263,64 @@ func UpdateOrderDetailHandler(c *gin.Context) {
 
 }
 
-func DeleteOrderDetail(c *gin.Context) {
-	// Extract order detail ID from the request parameters
-	orderDetailID := c.Param("id")
+func DeleteDetailHandler(c *gin.Context) {
 
-	// Convert order detail ID to integer (validations)
-	id, err := strconv.Atoi(orderDetailID)
+	id, err := ctrl.GetID(c)
 	if err != nil {
 		c.JSON(http.StatusBadRequest,
-			responses.CreateErrorResponse([]string{
-				"Invalid order detail ID",
+			r.CreateError([]string{
 				err.Error(),
 			}))
 		return
 	}
 
 	// Start a transaction
-	tx := initializer.DB.Begin()
-	if tx.Error != nil {
+	tx, err := ctrl.StartTrx(c)
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+	if err != nil {
 		c.JSON(http.StatusInternalServerError,
-			responses.CreateErrorResponse([]string{
-				"Failed to begin transaction",
+			r.CreateError([]string{
 				tx.Error.Error(),
 			}))
 		return
 	}
 
-	// Check if the order detail with the give ID exists
-	var orderDetail models.OrderDetail
-	err = tx.First(&orderDetail, id).Error
+	// Check if its exist
+	_, err = ctrl.GetDetail(id, i.DB)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError,
-			responses.CreateErrorResponse([]string{
-				"Failed to fetch order detail",
-			}))
-		return
-	}
-	if orderDetail == (models.OrderDetail{}) {
 		c.JSON(http.StatusNotFound,
-			responses.CreateErrorResponse([]string{
-				"Order detail not found",
+			r.CreateError([]string{
+				err.Error(),
 			}))
 		return
 	}
 
 	// Delete the order detail from the database
-
-	err = tx.Delete(&orderDetail, id).Error
+	err = ctrl.DeleteDetail(id, tx)
 	if err != nil {
-		tx.Rollback()
 		c.JSON(http.StatusInternalServerError,
-			responses.CreateErrorResponse([]string{
-				"Failed to delete order detail",
+			r.CreateError([]string{
+				err.Error(),
 			}))
 		return
 	}
 
 	// Commit the transaction and check for commit errors
-	err = tx.Commit().Error
+	err = ctrl.CommitTrx(c, tx)
 	if err != nil {
-		tx.Rollback()
 		c.JSON(http.StatusInternalServerError,
-			responses.CreateErrorResponse([]string{
-				"Failed to commit transaction",
-				err.Error(), // Include the specific error message
+			r.CreateError([]string{
+				err.Error(),
 			}))
 		return
 	}
 
 	// Return a JSON response indicating success
-	c.JSON(http.StatusOK, responses.CreateSuccessResponse(&orderDetail))
+	c.JSON(http.StatusOK, r.DeleteSuccess())
 }
 
 func GetOrderDetailsByOrderID(c *gin.Context) {

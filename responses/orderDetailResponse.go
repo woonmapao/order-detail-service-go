@@ -48,3 +48,10 @@ func GetDetailsSuccess(orderDetails []models.OrderDetail) gin.H {
 		},
 	}
 }
+
+func DeleteSuccess() gin.H {
+	return gin.H{
+		"status":  "success",
+		"message": "delete success",
+	}
+}
