@@ -100,3 +100,17 @@ func CommitTrx(c *gin.Context, tx *gorm.DB) error {
 	}
 	return nil
 }
+
+func UpdateOrderDetail(update *m.OrderDetail, exist *m.OrderDetail, tx *gorm.DB) error {
+
+	exist.OrderID = update.OrderID
+	exist.ProductID = update.ProductID
+	exist.Quantity = update.Quantity
+	exist.Subtotal = update.Subtotal
+
+	err := tx.Save(&exist).Error
+	if err != nil {
+		return errors.New("failed to update order detail")
+	}
+	return nil
+}

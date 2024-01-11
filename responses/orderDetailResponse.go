@@ -31,6 +31,14 @@ func GetSuccess(data interface{}) gin.H {
 	}
 }
 
+func UpdateSuccess(data interface{}) gin.H {
+	return gin.H{
+		"status":  "success",
+		"message": "update success",
+		"data":    data,
+	}
+}
+
 func GetDetailsSuccess(orderDetails []models.OrderDetail) gin.H {
 	return gin.H{
 		"status":  "success",
