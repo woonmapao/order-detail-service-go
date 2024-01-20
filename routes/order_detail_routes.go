@@ -2,17 +2,20 @@ package routes
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/woonmapao/order-detail-service-go/controllers"
+	h "github.com/woonmapao/order-detail-service-go/handlers"
 )
 
 func SetupOrderDetailRoutes(router *gin.Engine) {
+
 	orderDetailGroup := router.Group("/order-details")
 	{
-		orderDetailGroup.GET("/", controllers.GetAllOrderDetails)
-		orderDetailGroup.GET("/:id", controllers.GetOrderDetailByID)
-		orderDetailGroup.POST("/", controllers.AddOrderDetail)
-		orderDetailGroup.PUT("/:id", controllers.UpdateOrderDetail)
-		orderDetailGroup.DELETE("/:id", controllers.DeleteOrderDetail)
-		orderDetailGroup.GET("/orders/:id", controllers.GetOrderDetailsByOrderID)
+		orderDetailGroup.POST("/", h.AddDetailHandler)
+
+		orderDetailGroup.GET("/", h.GetDetailsHandler)
+		orderDetailGroup.GET("/:id", h.GetDetailHandler)
+
+		orderDetailGroup.PUT("/:id", h.UpdateOrderDetailHandler)
+
+		orderDetailGroup.DELETE("/:id", h.DeleteDetailHandler)
 	}
 }
