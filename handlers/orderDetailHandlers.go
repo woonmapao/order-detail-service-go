@@ -2,14 +2,11 @@ package handlers
 
 import (
 	"net/http"
-	"strconv"
 	"sync"
 
 	"github.com/gin-gonic/gin"
 	ctrl "github.com/woonmapao/order-detail-service-go/controllers"
-	"github.com/woonmapao/order-detail-service-go/initializer"
 	i "github.com/woonmapao/order-detail-service-go/initializer"
-	"github.com/woonmapao/order-detail-service-go/models"
 	m "github.com/woonmapao/order-detail-service-go/models"
 	"github.com/woonmapao/order-detail-service-go/responses"
 	r "github.com/woonmapao/order-detail-service-go/responses"
@@ -321,42 +318,4 @@ func DeleteDetailHandler(c *gin.Context) {
 
 	// Return a JSON response indicating success
 	c.JSON(http.StatusOK, r.DeleteSuccess())
-}
-
-func GetOrderDetailsByOrderID(c *gin.Context) {
-	// Extract order ID from the request parameters
-	orderID := c.Param("id")
-
-	id, err := strconv.Atoi(orderID)
-	if err != nil {
-		c.JSON(http.StatusBadRequest,
-			responses.CreateErrorResponse([]string{
-				"Invalid order ID",
-				err.Error(),
-			}))
-		return
-	}
-
-	// Query the database for order details associated with the order
-	var orderDetails []models.OrderDetail
-	err = initializer.DB.Where("order_id = ?", id).Find(&orderDetails).Error
-	if err != nil {
-		c.JSON(http.StatusInternalServerError,
-			responses.CreateErrorResponse([]string{
-				"Failed to fetch order details",
-				err.Error(),
-			}))
-		return
-	}
-	if len(orderDetails) == 0 {
-		c.JSON(http.StatusNotFound,
-			responses.CreateErrorResponse([]string{
-				"No order details found for the give order ID",
-			}))
-		return
-	}
-
-	// Return a JSON response with the order details
-	c.JSON(http.StatusOK,
-		responses.GetSuccessResponseForMultipleOrderDetails(orderDetails))
 }
